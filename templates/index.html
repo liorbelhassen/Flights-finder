@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Flight Availability Monitor</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    label { display: block; margin: 0.6rem 0 0.2rem; font-size: 0.9rem; }
+    input { padding: 0.4rem; width: 16rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+    th, td { border: 1px solid #ddd; padding: 0.4rem; text-align: left; font-size: 0.85rem; }
+    .flash { background: #eef; padding: 0.6rem; border: 1px solid #99c; margin-bottom: 1rem; }
+    .warn { background: #fee; padding: 0.6rem; border: 1px solid #c99; margin-bottom: 1rem; }
+    .muted { color: #666; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>Flight Availability Monitor</h1>
+
+  {% with messages = get_flashed_messages() %}
+    {% for message in messages %}<div class="flash">{{ message }}</div>{% endfor %}
+  {% endwith %}
+
+  {% if not duffel_configured %}
+    <div class="warn">DUFFEL_API_KEY is not set — checks will fail. Add it to your <code>.env</code> file.</div>
+  {% endif %}
+  {% if not smtp_configured %}
+    <div class="warn">SMTP is not configured — alerts cannot be emailed. Add SMTP settings to your <code>.env</code> file.</div>
+  {% endif %}
+
+  <h2>Monitored search</h2>
+  {% if search %}
+    <table>
+      <tr><th>Route</th><td>{{ search.origin }} &rarr; {{ search.destination }}</td></tr>
+      <tr><th>Date</th><td>{{ search.departure_date }}</td></tr>
+      <tr><th>Passengers</th><td>{{ search.passengers }}</td></tr>
+      <tr><th>Notify</th><td>{{ search.email }}</td></tr>
+      <tr><th>Max price</th><td>{{ search.max_price if search.max_price is not none else 'any' }}</td></tr>
+      <tr><th>Saved at</th><td>{{ search.created_at }}</td></tr>
+    </table>
+    <p class="muted">Checked automatically every {{ interval }} minute(s).</p>
+    <form method="post" action="{{ url_for('check_now') }}" style="display:inline">
+      <button type="submit">Check now</button>
+    </form>
+    <form method="post" action="{{ url_for('delete_search') }}" style="display:inline">
+      <button type="submit">Delete search</button>
+    </form>
+
+    <h2>Recent checks</h2>
+    {% if checks %}
+      <table>
+        <tr><th>Time (UTC)</th><th>Status</th><th>Offers</th><th>Alerts</th><th>Detail</th></tr>
+        {% for check in checks %}
+          <tr>
+            <td>{{ check.checked_at }}</td>
+            <td>{{ check.status }}</td>
+            <td>{{ check.offers_found }}</td>
+            <td>{{ check.alerts_sent }}</td>
+            <td>{{ check.detail }}</td>
+          </tr>
+        {% endfor %}
+      </table>
+    {% else %}
+      <p class="muted">No checks yet.</p>
+    {% endif %}
+  {% else %}
+    <p class="muted">No search saved yet.</p>
+  {% endif %}
+
+  <h2>{{ 'Replace search' if search else 'Create search' }}</h2>
+  <p class="muted">Saving replaces the single monitored search and clears its alert history.</p>
+  <form method="post" action="{{ url_for('save_search') }}">
+    <label>Origin (IATA)<input name="origin" maxlength="3" placeholder="LHR" required></label>
+    <label>Destination (IATA)<input name="destination" maxlength="3" placeholder="JFK" required></label>
+    <label>Travel date<input name="departure_date" type="date" required></label>
+    <label>Passengers<input name="passengers" type="number" min="1" max="9" value="1" required></label>
+    <label>Notify email<input name="email" type="email" required></label>
+    <label>Max price (optional)<input name="max_price" type="number" step="0.01" min="0"></label>
+    <p><button type="submit">Save and start monitoring</button></p>
+  </form>
+</body>
+</html>
