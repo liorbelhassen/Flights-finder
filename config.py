@@ -12,10 +12,18 @@ def _int(name: str, default: int) -> int:
         return default
 
 
+def _float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, "") or default)
+    except ValueError:
+        return default
+
+
 DUFFEL_API_KEY = os.environ.get("DUFFEL_API_KEY", "")
 DUFFEL_API_URL = os.environ.get("DUFFEL_API_URL", "https://api.duffel.com")
 
 CHECK_INTERVAL_MINUTES = _int("CHECK_INTERVAL_MINUTES", 15)
+MIN_PRICE_DROP_PERCENT = _float("MIN_PRICE_DROP_PERCENT", 5.0)
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "flights.db")
 
 SMTP_HOST = os.environ.get("SMTP_HOST", "")

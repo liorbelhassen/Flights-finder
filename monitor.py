@@ -1,6 +1,7 @@
 """One check cycle: search Duffel, detect new/better offers, email once each."""
 import logging
 
+import config
 import db
 import duffel
 import mailer
@@ -47,7 +48,7 @@ def check_once():
         return {"status": "error", "detail": str(exc), "offers_found": len(matching)}
 
     for offer in new_offers:
-        db.record_offer(offer["id"], offer["price"])
+        db.record_offer(offer["signature"], offer["id"], offer["price"])
 
     detail = f"{len(matching)} matching offer(s), emailed {len(new_offers)} new/better offer(s)"
     db.log_check("alerted", detail, offers_found=len(matching), alerts_sent=len(new_offers))
@@ -63,16 +64,39 @@ def _matches(offer, max_price):
 
 
 def _new_or_better(offers):
+    """Offers whose itinerary has not been reported yet, or is now clearly cheaper.
+
+    Keyed on the itinerary signature, not the Duffel offer id: Duffel returns a
+    fresh offer id for every offer request, so ids would never match. Airline
+    prices also jitter by small amounts between requests, so a re-alert needs a
+    drop of at least MIN_PRICE_DROP_PERCENT against the best price reported so far.
+    """
     seen = db.seen_offers()
-    result = []
+    cheapest = {}
     for offer in offers:
-        if offer["id"] not in seen:
+        signature = offer["signature"]
+        current = cheapest.get(signature)
+        if current is None or _is_cheaper(offer["price"], current["price"]):
+            cheapest[signature] = offer
+
+    result = []
+    for signature, offer in cheapest.items():
+        if signature not in seen:
             result.append(offer)
             continue
-        previous = seen[offer["id"]]
-        if previous is not None and offer["price"] is not None and offer["price"] < previous:
+        if _is_significant_drop(offer["price"], seen[signature]):
             result.append(offer)
     return result
+
+
+def _is_cheaper(price, reference):
+    return price is not None and reference is not None and price < reference
+
+
+def _is_significant_drop(price, reference):
+    if price is None or reference is None:
+        return False
+    return price <= reference * (1 - config.MIN_PRICE_DROP_PERCENT / 100)
 
 
 def _send_alert(search, offers):

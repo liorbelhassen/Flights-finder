@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS search (
 );
 
 CREATE TABLE IF NOT EXISTS seen_offers (
-    offer_id TEXT PRIMARY KEY,
+    signature TEXT PRIMARY KEY,
+    offer_id TEXT,
     price REAL,
     reported_at TEXT NOT NULL
 );
@@ -75,18 +76,19 @@ def delete_search():
 
 
 def seen_offers():
+    """Best price already reported per itinerary signature."""
     with connect() as conn:
-        rows = conn.execute("SELECT offer_id, price FROM seen_offers").fetchall()
-    return {row["offer_id"]: row["price"] for row in rows}
+        rows = conn.execute("SELECT signature, price FROM seen_offers").fetchall()
+    return {row["signature"]: row["price"] for row in rows}
 
 
-def record_offer(offer_id, price):
+def record_offer(signature, offer_id, price):
     with connect() as conn:
         conn.execute(
-            "INSERT INTO seen_offers (offer_id, price, reported_at) VALUES (?, ?, ?)"
-            " ON CONFLICT(offer_id) DO UPDATE SET price = excluded.price,"
-            " reported_at = excluded.reported_at",
-            (offer_id, price, now()),
+            "INSERT INTO seen_offers (signature, offer_id, price, reported_at) VALUES (?, ?, ?, ?)"
+            " ON CONFLICT(signature) DO UPDATE SET offer_id = excluded.offer_id,"
+            " price = excluded.price, reported_at = excluded.reported_at",
+            (signature, offer_id, price, now()),
         )
 
 

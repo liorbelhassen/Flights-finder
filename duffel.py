@@ -82,20 +82,34 @@ def summarize_offer(offer):
     except (TypeError, ValueError):
         price = None
 
+    flight_numbers = ", ".join(
+        f"{(seg.get('marketing_carrier') or {}).get('iata_code', '')}{seg.get('marketing_carrier_flight_number', '')}"
+        for seg in segments
+    )
+    origin = (first.get("origin") or {}).get("iata_code", "")
+    destination = (last.get("destination") or {}).get("iata_code", "")
+
     return {
         "id": offer.get("id"),
+        # Duffel mints a new offer id for every offer request, so alerts are
+        # deduplicated on the itinerary itself rather than on the offer id.
+        "signature": "|".join([
+            carrier,
+            flight_numbers,
+            origin,
+            destination,
+            first.get("departing_at", ""),
+            last.get("arriving_at", ""),
+        ]),
         "airline": carrier,
         "price": price,
         "currency": offer.get("total_currency", ""),
         "departing_at": first.get("departing_at", ""),
         "arriving_at": last.get("arriving_at", ""),
-        "origin": (first.get("origin") or {}).get("iata_code", ""),
-        "destination": (last.get("destination") or {}).get("iata_code", ""),
+        "origin": origin,
+        "destination": destination,
         "stops": max(len(segments) - 1, 0),
-        "flight_numbers": ", ".join(
-            f"{(seg.get('marketing_carrier') or {}).get('iata_code', '')}{seg.get('marketing_carrier_flight_number', '')}"
-            for seg in segments
-        ),
+        "flight_numbers": flight_numbers,
     }
 
 

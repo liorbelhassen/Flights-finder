@@ -28,6 +28,7 @@ never committed and are read at startup by `config.py`.
 | --- | --- | --- | --- |
 | `DUFFEL_API_KEY` | yes | — | Duffel access token, test tokens start with `duffel_test` |
 | `CHECK_INTERVAL_MINUTES` | no | `15` | Background check interval |
+| `MIN_PRICE_DROP_PERCENT` | no | `5` | How much cheaper an already-alerted itinerary must get to alert again |
 | `SMTP_HOST` | yes for alerts | — | e.g. `smtp.gmail.com` or `smtp.sendgrid.net` |
 | `SMTP_PORT` | no | `587` | `465` switches to implicit SSL |
 | `SMTP_USERNAME` | yes for alerts | — | Gmail address, or `apikey` for SendGrid |
@@ -49,10 +50,21 @@ alerts sent). "Check now" runs a check immediately; "Delete search" stops monito
 ### Alerting and duplicate suppression
 
 Each cycle posts to `/air/offer_requests`, keeps offers at or below `max_price` (if set), and emails
-only offers whose Duffel offer ID has not been reported yet, plus previously reported offers whose
-price has dropped. Reported offer IDs and prices live in the `seen_offers` table, so the same result
-is never emailed twice. If the email fails, the offers are *not* recorded, so the alert is retried on
-the next cycle. Duffel errors (including rate limits) are logged to the `checks` table and retried on
+only itineraries that have not been reported yet, plus previously reported ones whose price has
+dropped. Duffel mints a **new offer ID on every offer request**, so deduplication is keyed on an
+itinerary signature (airline + flight numbers + route + departure/arrival times), not the offer ID;
+signatures and their best reported price live in the `seen_offers` table.
+
+Airline prices jitter by small amounts between requests, so a re-alert requires the price to drop at
+least `MIN_PRICE_DROP_PERCENT` (default 5%) below the best price already reported for that
+itinerary — otherwise every check would email the same flights again. Note that Duffel's *test*
+environment randomises prices per request by tens of percent, so with a `duffel_test` key you will
+still see occasional extra alerts as the best-seen price ratchets down; live prices are stable.
+
+`max_price` is compared against Duffel's `total_amount` without currency conversion, so use the
+currency your searches come back in.
+
+If the email fails, the offers are *not* recorded, so the alert is retried on the next cycle. Duffel errors (including rate limits) are logged to the `checks` table and retried on
 the next cycle — the app never crashes on them.
 
 ### Manual Duffel check
